@@ -1,3 +1,6 @@
+#![feature(test)]
+extern crate test;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Instant;
 

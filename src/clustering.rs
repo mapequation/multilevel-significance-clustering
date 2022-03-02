@@ -129,3 +129,45 @@ fn calc_score_penalty(
 
     (score, penalty)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn test_calc_score_penalty(b: &mut Bencher) {
+        let mut rng = rand::thread_rng();
+
+        const NUM_NODES: u32 = 10000;
+        const NUM_PARTITIONS: u32 = 100;
+
+        let module = (0..NUM_NODES).collect::<HashSet<_>>();
+        let mut modules = Vec::new();
+
+        for _ in 0..NUM_PARTITIONS {
+            let mut module = module.clone();
+
+            let num_remove: u32 = rng.gen_range(0..((NUM_NODES / 10) as u32));
+
+            for _ in 0..num_remove {
+                let node = *module.iter().choose(&mut rng).unwrap();
+                module.remove(&node);
+            }
+
+            modules.push(module);
+        }
+
+        let num_partitions_to_exclude = ((1.0 - 0.95) * modules.len() as f32) as usize;
+        let penalty_weight = 10 * module.len() as i64;
+
+        b.iter(|| {
+            calc_score_penalty(
+                &module,
+                &modules.iter().collect::<Vec<_>>(),
+                penalty_weight,
+                num_partitions_to_exclude,
+            );
+        });
+    }
+}
