@@ -102,6 +102,7 @@ fn calc_score_penalty(
     let mut score = 0;
     let mut penalty = 0;
     let mut worst_scores = Vec::new();
+    let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
 
     // Calculate penalty without worst results
     for &module2 in modules.iter() {
@@ -113,7 +114,7 @@ fn calc_score_penalty(
         worst_scores.push(module_score);
         worst_scores.sort_unstable();
 
-        let worst_score = if worst_scores.len() > num_partitions_to_exclude {
+        let worst_score = if worst_scores.len() > num_partitions_to_keep {
             let best = worst_scores.pop().unwrap();
             let worst = *worst_scores.first().unwrap_or(&best);
             worst
@@ -135,6 +136,33 @@ mod tests {
     extern crate test;
     use super::*;
     use test::Bencher;
+
+    #[test]
+    fn test_calc_score_penalty() {
+        let module = (0..10).collect::<HashSet<_>>();
+
+        let (score, penalty) = calc_score_penalty(&module, &[&module], 1, 0);
+        assert_eq!(score, 10);
+        assert_eq!(penalty, 0);
+
+        let modules = vec![
+            (0..10).collect::<HashSet<_>>(),
+            (0..10).collect::<HashSet<_>>(),
+            (0..10).collect::<HashSet<_>>(),
+            (0..10).collect::<HashSet<_>>(),
+            (1..11).collect::<HashSet<_>>(),
+        ];
+
+        let (score, penalty) =
+            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 1);
+        assert_eq!(score, 40);
+        assert_eq!(penalty, 0);
+
+        let (score, penalty) =
+            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 0);
+        assert_eq!(score, 49);
+        assert_eq!(penalty, 1);
+    }
 
     #[bench]
     fn bench_calc_score_penalty(b: &mut Bencher) {
