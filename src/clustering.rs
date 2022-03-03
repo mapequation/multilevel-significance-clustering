@@ -1,4 +1,5 @@
-use std::collections::HashSet;
+use std::cmp::max;
+use std::collections::{HashMap, HashSet};
 
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
@@ -13,11 +14,43 @@ pub fn get_significant_core(
     seed: u64,
 ) -> HashSet<NodeId> {
     let mut rng = StdRng::seed_from_u64(seed);
-    let mut core = HashSet::new();
-    let node_ids = module.iter().collect::<Vec<_>>();
+
+    let mut counts = HashMap::with_capacity(module.len());
+
+    // Count the number of modules that each node is in
+    for node in module.iter() {
+        for module in modules.iter() {
+            if module.contains(node) {
+                *counts.entry(*node).or_insert(0) += 1;
+            }
+        }
+    }
+
+    // Add all nodes that are present in all partitions
+    let mut core = counts
+        .iter()
+        .filter_map(|(&node, &count)| {
+            if count == modules.len() {
+                Some(node)
+            } else {
+                None
+            }
+        })
+        .collect::<HashSet<_>>();
+
+    // Remove all nodes that are present in all partitions
+    counts.retain(|_, count| *count < modules.len());
+
+    // Special case: if the counts are empty, all nodes are in the core
+    if counts.is_empty() {
+        return core;
+    }
+
+    // Nodes that are not present in all partitions
+    let node_ids = counts.keys().copied().collect::<Vec<_>>();
 
     // Randomize start
-    for &node in module.iter() {
+    for &node in node_ids.iter() {
         if rng.gen::<bool>() {
             core.insert(node);
         }
@@ -29,26 +62,31 @@ pub fn get_significant_core(
     let (mut score, mut penalty) =
         calc_score_penalty(module, modules, penalty_weight, num_partitions_to_exclude);
 
-    const NUM_ITERATIONS: usize = 10;
+    const MAX_SEARCH_LOOPS: usize = 1000;
+    const MAX_INNER_LOOPS: usize = 1000;
+    let num_iterations: usize = max(module.len(), 100);
     let mut best_score = -1;
 
     let mut search = true;
+    let mut search_loops = 0;
+
     while search {
         let mut temperature = 1.0;
+        let mut inner_loops = 0;
 
         loop {
             let mut switches = 0;
 
-            for _ in 0..NUM_ITERATIONS {
+            for _ in 0..num_iterations {
                 // Select random node
                 let node_id = *node_ids.iter().choose(&mut rng).unwrap();
-                let in_conf_set = core.contains(node_id);
+                let in_conf_set = core.contains(&node_id);
 
                 // Remove or add the node
                 if in_conf_set {
-                    core.remove(node_id);
+                    core.remove(&node_id);
                 } else {
-                    core.insert(*node_id);
+                    core.insert(node_id);
                 }
 
                 let was_in_conf_set = in_conf_set;
@@ -60,6 +98,8 @@ pub fn get_significant_core(
                 let s_new = new_score - penalty_weight * new_penalty;
                 let delta_s = (s_new - s) as f64;
 
+                // Always accept if the score is better
+                // Accept with some probability if the score is worse
                 if (delta_s / temperature).exp() > rng.gen::<f64>() {
                     score = new_score;
                     penalty = new_penalty;
@@ -67,9 +107,9 @@ pub fn get_significant_core(
                 } else {
                     // Revert the change
                     if was_in_conf_set {
-                        core.insert(*node_id);
+                        core.insert(node_id);
                     } else {
-                        core.remove(node_id);
+                        core.remove(&node_id);
                     }
                 }
 
@@ -80,14 +120,18 @@ pub fn get_significant_core(
 
             temperature *= 0.99;
 
-            if switches == 0 {
+            if switches == 0 || inner_loops > MAX_INNER_LOOPS {
                 break;
             }
+
+            inner_loops += 1;
         }
 
-        if best_score > 0 {
+        if best_score > 0 || search_loops > MAX_SEARCH_LOOPS {
             search = false;
         }
+
+        search_loops += 1;
     }
 
     core
@@ -101,30 +145,33 @@ fn calc_score_penalty(
 ) -> (i64, i64) {
     let mut score = 0;
     let mut penalty = 0;
-    let mut worst_scores = Vec::new();
+
     let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
+    let mut worst_scores = Vec::with_capacity(num_partitions_to_keep);
 
-    // Calculate penalty without worst results
-    for &module2 in modules.iter() {
-        let intersection = module.intersection(module2).count();
-        let difference = module.difference(module2).count();
-
-        let module_score = intersection as i64 - penalty_weight * difference as i64;
-
+    let mut get_worst_score = |module_score: i64| -> i64 {
         worst_scores.push(module_score);
         worst_scores.sort_unstable();
 
-        let worst_score = if worst_scores.len() > num_partitions_to_keep {
+        if worst_scores.len() > num_partitions_to_keep {
             let best = worst_scores.pop().unwrap();
             let worst = *worst_scores.first().unwrap_or(&best);
             worst
         } else {
             i64::MIN
-        };
+        }
+    };
 
-        if module_score > worst_score {
-            score += intersection as i64;
-            penalty += difference as i64;
+    // Calculate penalty without worst results
+    for &module2 in modules.iter() {
+        let intersection = module.intersection(module2).count() as i64;
+        let difference = module.difference(module2).count() as i64;
+
+        let module_score = intersection - penalty_weight * difference;
+
+        if module_score > get_worst_score(module_score) {
+            score += intersection;
+            penalty += difference;
         }
     }
 
