@@ -1,4 +1,4 @@
-# Multi-level significance clustering
+# Multi-level (hierarchical) significance clustering
 
 Requires [Rust](https://rustup.rs/) nightly (Mar 2022)
 
