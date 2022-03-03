@@ -132,14 +132,15 @@ fn calc_score_penalty(
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
     use super::*;
     use test::Bencher;
 
     #[bench]
-    fn test_calc_score_penalty(b: &mut Bencher) {
+    fn bench_calc_score_penalty(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
 
-        const NUM_NODES: u32 = 10000;
+        const NUM_NODES: u32 = 1000;
         const NUM_PARTITIONS: u32 = 100;
 
         let module = (0..NUM_NODES).collect::<HashSet<_>>();
