@@ -59,12 +59,9 @@ pub fn write_result(
     for (node, entries) in nodes.iter() {
         let mut line = String::new();
 
-        let mut top_level_significant = true;
         for &(module, significant) in entries.values() {
-            top_level_significant = top_level_significant && significant;
-
-            let sig_str = if top_level_significant { ":" } else { ";" };
-            line.push_str(&format!("{}{}", module, sig_str));
+            let separator = if significant { ':' } else { ';' };
+            line.push_str(&format!("{}{}", module, separator));
         }
 
         if &line[line.len() - 1..] == ":" {
