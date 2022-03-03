@@ -2,6 +2,7 @@
 extern crate test;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io::Write;
 use std::time::Instant;
 
 mod clustering;
@@ -75,6 +76,7 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
     let num_modules = most_similar_modules.len();
 
     print!("Clustering...");
+    std::io::stdout().flush().unwrap();
     let start = Instant::now();
     for (i, (module_id1, networks)) in most_similar_modules.iter().enumerate() {
         let iteration_start = Instant::now();
@@ -96,6 +98,7 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
             num_modules,
             iteration_start.elapsed().as_millis()
         );
+        std::io::stdout().flush().unwrap();
     }
     println!(
         "\rClustering... {}/{} done ({} ms)",
