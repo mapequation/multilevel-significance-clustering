@@ -12,13 +12,11 @@ pub fn get_most_similar_modules(
     let mut most_similar_modules = BTreeMap::new();
 
     for module1 in first.modules.values() {
-        // println!("{:?}", module1);
         let most_similar_to_module = most_similar_modules
             .entry(module1.module_id.clone())
-            .or_insert(BTreeMap::new());
+            .or_insert_with(BTreeMap::new);
 
         for (network_id, network) in rest.iter() {
-            // println!("\tNetwork {}:", network_id);
             for module2 in network.modules.values() {
                 let module_dist = (
                     module2.module_id.clone(),

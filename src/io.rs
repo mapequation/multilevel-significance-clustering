@@ -49,7 +49,7 @@ pub fn write_result(
             let significant = core.contains(node);
             nodes
                 .entry(node)
-                .or_insert(BTreeMap::new())
+                .or_insert_with(BTreeMap::new)
                 .insert(module.level, (module.module, significant));
         }
     }

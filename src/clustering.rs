@@ -19,9 +19,10 @@ pub fn get_significant_core(
 
     // Count the number of modules that each node is in
     for node in module.iter() {
+        let count = counts.entry(*node).or_insert(0);
         for module in modules.iter() {
             if module.contains(node) {
-                *counts.entry(*node).or_insert(0) += 1;
+                *count += 1;
             }
         }
     }
@@ -39,7 +40,7 @@ pub fn get_significant_core(
         .collect::<HashSet<_>>();
 
     // Remove all nodes that are present in all partitions
-    counts.retain(|_, count| *count < modules.len());
+    counts.retain(|_, count| 0 < *count && *count < modules.len());
 
     // Special case: if the counts are empty, all nodes are in the core
     if counts.is_empty() {
@@ -80,16 +81,16 @@ pub fn get_significant_core(
             for _ in 0..num_iterations {
                 // Select random node
                 let node_id = *node_ids.iter().choose(&mut rng).unwrap();
-                let in_conf_set = core.contains(&node_id);
+                let in_set = core.contains(&node_id);
 
                 // Remove or add the node
-                if in_conf_set {
+                if in_set {
                     core.remove(&node_id);
                 } else {
                     core.insert(node_id);
                 }
 
-                let was_in_conf_set = in_conf_set;
+                let was_in_set = in_set;
 
                 let (new_score, new_penalty) =
                     calc_score_penalty(&core, modules, penalty_weight, num_partitions_to_exclude);
@@ -98,15 +99,15 @@ pub fn get_significant_core(
                 let s_new = new_score - penalty_weight * new_penalty;
                 let delta_s = (s_new - s) as f64;
 
-                // Always accept if the score is better
-                // Accept with some probability if the score is worse
+                // Always accept if delta_s is positive
+                // Accept with some probability if negative
                 if (delta_s / temperature).exp() > rng.gen::<f64>() {
                     score = new_score;
                     penalty = new_penalty;
                     switches += 1;
                 } else {
                     // Revert the change
-                    if was_in_conf_set {
+                    if was_in_set {
                         core.insert(node_id);
                     } else {
                         core.remove(&node_id);
@@ -216,10 +217,10 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         const NUM_NODES: u32 = 1000;
-        const NUM_PARTITIONS: u32 = 100;
+        const NUM_PARTITIONS: usize = 100;
 
         let module = (0..NUM_NODES).collect::<HashSet<_>>();
-        let mut modules = Vec::new();
+        let mut modules = Vec::with_capacity(NUM_PARTITIONS);
 
         for _ in 0..NUM_PARTITIONS {
             let mut module = module.clone();
