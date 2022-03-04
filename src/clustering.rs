@@ -48,12 +48,12 @@ pub fn get_significant_core(
     }
 
     // Nodes that are not present in all partitions
-    let node_ids = counts.keys().copied().collect::<Vec<_>>();
+    let node_ids = counts.keys().into_iter().collect::<Vec<_>>();
 
     // Randomize start
     for &node in node_ids.iter() {
         if rng.gen::<bool>() {
-            core.insert(node);
+            core.insert(*node);
         }
     }
 
@@ -63,15 +63,13 @@ pub fn get_significant_core(
     let (mut score, mut penalty) =
         calc_score_penalty(module, modules, penalty_weight, num_partitions_to_exclude);
 
-    const MAX_SEARCH_LOOPS: usize = 1000;
+    const MAX_OUTER_LOOPS: usize = 1000;
     const MAX_INNER_LOOPS: usize = 1000;
     let num_iterations: usize = max(module.len(), 100);
+    let mut outer_loops = 0;
     let mut best_score = -1;
 
-    let mut search = true;
-    let mut search_loops = 0;
-
-    while search {
+    loop {
         let mut temperature = 1.0;
         let mut inner_loops = 0;
 
@@ -81,13 +79,13 @@ pub fn get_significant_core(
             for _ in 0..num_iterations {
                 // Select random node
                 let node_id = *node_ids.iter().choose(&mut rng).unwrap();
-                let in_set = core.contains(&node_id);
+                let in_set = core.contains(node_id);
 
                 // Remove or add the node
                 if in_set {
-                    core.remove(&node_id);
+                    core.remove(node_id);
                 } else {
-                    core.insert(node_id);
+                    core.insert(*node_id);
                 }
 
                 let was_in_set = in_set;
@@ -108,9 +106,9 @@ pub fn get_significant_core(
                 } else {
                     // Revert the change
                     if was_in_set {
-                        core.insert(node_id);
+                        core.insert(*node_id);
                     } else {
-                        core.remove(&node_id);
+                        core.remove(node_id);
                     }
                 }
 
@@ -128,11 +126,11 @@ pub fn get_significant_core(
             inner_loops += 1;
         }
 
-        if best_score > 0 || search_loops > MAX_SEARCH_LOOPS {
-            search = false;
+        if best_score > 0 || outer_loops > MAX_OUTER_LOOPS {
+            break;
         }
 
-        search_loops += 1;
+        outer_loops += 1;
     }
 
     core
@@ -144,39 +142,37 @@ fn calc_score_penalty(
     penalty_weight: i64,
     num_partitions_to_exclude: usize,
 ) -> (i64, i64) {
-    let mut score = 0;
-    let mut penalty = 0;
+    let mut get_worst_score = {
+        let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
+        let mut scores = Vec::with_capacity(num_partitions_to_keep);
 
-    let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
-    let mut worst_scores = Vec::with_capacity(num_partitions_to_keep);
+        move |module_score: i64| -> i64 {
+            scores.push(module_score);
+            scores.sort_unstable();
 
-    let mut get_worst_score = |module_score: i64| -> i64 {
-        worst_scores.push(module_score);
-        worst_scores.sort_unstable();
-
-        if worst_scores.len() > num_partitions_to_keep {
-            let best = worst_scores.pop().unwrap();
-            let worst = *worst_scores.first().unwrap_or(&best);
-            worst
-        } else {
-            i64::MIN
+            if scores.len() > num_partitions_to_keep {
+                let best = scores.pop().unwrap();
+                let worst = *scores.first().unwrap_or(&best);
+                worst
+            } else {
+                i64::MIN
+            }
         }
     };
 
-    // Calculate penalty without worst results
-    for &module2 in modules.iter() {
-        let intersection = module.intersection(module2).count() as i64;
-        let difference = module.difference(module2).count() as i64;
-
-        let module_score = intersection - penalty_weight * difference;
-
-        if module_score > get_worst_score(module_score) {
-            score += intersection;
-            penalty += difference;
-        }
-    }
-
-    (score, penalty)
+    // Calculate score and penalty without worst results
+    modules
+        .iter()
+        .map(|module2| {
+            let score = module.intersection(module2).count() as i64;
+            let penalty = module.difference(module2).count() as i64;
+            (score, penalty)
+        })
+        .filter(|(score, penalty)| {
+            let module_score = score - penalty_weight * penalty;
+            module_score > get_worst_score(module_score)
+        })
+        .fold((0, 0), |(s, p), (score, penalty)| (s + score, p + penalty))
 }
 
 #[cfg(test)]

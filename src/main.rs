@@ -1,5 +1,5 @@
 #![feature(test)]
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::time::Instant;
 
@@ -32,13 +32,13 @@ impl Module {
 
 #[derive(Debug, Clone)]
 pub struct Network {
-    pub modules: BTreeMap<String, Module>,
+    pub modules: HashMap<String, Module>,
 }
 
 impl Network {
     fn new() -> Network {
         Network {
-            modules: BTreeMap::new(),
+            modules: HashMap::new(),
         }
     }
 

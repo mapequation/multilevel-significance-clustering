@@ -1,5 +1,5 @@
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{Network, NodeId};
 
@@ -8,8 +8,8 @@ type Distance = (String, f32);
 pub fn get_most_similar_modules(
     first: &Network,
     rest: &BTreeMap<usize, Network>,
-) -> BTreeMap<String, BTreeMap<usize, Distance>> {
-    let mut most_similar_modules = BTreeMap::new();
+) -> HashMap<String, BTreeMap<usize, Distance>> {
+    let mut most_similar_modules = HashMap::new();
 
     for module1 in first.modules.values() {
         let most_similar_to_module = most_similar_modules

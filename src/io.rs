@@ -36,7 +36,7 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<usize, Network>, Box<dyn std
 }
 
 pub fn write_result(
-    modules: &BTreeMap<String, Module>,
+    modules: &HashMap<String, Module>,
     significant_cores: &HashMap<&String, HashSet<NodeId>>,
     out_file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
