@@ -1,4 +1,5 @@
 #![feature(test)]
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::time::Instant;
@@ -70,34 +71,32 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
     let most_similar_modules = similarity::get_most_similar_modules(&first, &rest);
     println!("done ({} ms)", start.elapsed().as_millis());
 
-    let mut significant_cores = HashMap::new();
-    let num_modules = most_similar_modules.len();
-
     print!("Clustering...");
     std::io::stdout().flush().unwrap();
     let start = Instant::now();
-    for (i, (module_id1, networks)) in most_similar_modules.iter().enumerate() {
-        let iteration_start = Instant::now();
-        let module = &first.modules[module_id1].nodes;
 
-        let modules = networks
-            .iter()
-            .map(|(network_id, (module_id, _))| &rest[network_id].modules[module_id].nodes)
-            .collect::<Vec<_>>();
+    let significant_cores = most_similar_modules
+        .par_iter()
+        .map(|(module_id1, networks)| {
+            let module = &first.modules[module_id1].nodes;
 
-        let core =
-            clustering::get_significant_core(module, modules.as_slice(), config.conf, config.seed);
+            let modules = networks
+                .iter()
+                .map(|(network_id, (module_id, _))| &rest[network_id].modules[module_id].nodes)
+                .collect::<Vec<_>>();
 
-        significant_cores.insert(module_id1, core);
+            let core = clustering::get_significant_core(
+                module,
+                modules.as_slice(),
+                config.conf,
+                config.seed,
+            );
 
-        print!(
-            "\rClustering... {}/{} ({} ms)",
-            i + 1,
-            num_modules,
-            iteration_start.elapsed().as_millis()
-        );
-        std::io::stdout().flush().unwrap();
-    }
+            (module_id1.to_string(), core)
+        })
+        .collect::<HashMap<String, HashSet<NodeId>>>();
+
+    let num_modules = most_similar_modules.len();
     println!(
         "\rClustering... {}/{} done ({} ms)",
         num_modules,

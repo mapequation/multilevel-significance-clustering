@@ -37,12 +37,12 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<usize, Network>, Box<dyn std
 
 pub fn write_result(
     modules: &HashMap<String, Module>,
-    significant_cores: &HashMap<&String, HashSet<NodeId>>,
+    significant_cores: &HashMap<String, HashSet<NodeId>>,
     out_file: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut nodes = BTreeMap::new();
 
-    for (&module_id, core) in significant_cores.iter() {
+    for (module_id, core) in significant_cores.iter() {
         let module = &modules[module_id];
 
         for node in module.nodes.iter() {
