@@ -58,10 +58,12 @@ pub fn get_significant_core(
     }
 
     let num_partitions_to_exclude = ((1.0 - conf) * modules.len() as f32) as usize;
+    let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
+
     let penalty_weight = 10 * module.len() as i64;
 
     let (mut score, mut penalty) =
-        calc_score_penalty(module, modules, penalty_weight, num_partitions_to_exclude);
+        calc_score_penalty(module, modules, penalty_weight, num_partitions_to_keep);
 
     const MAX_OUTER_LOOPS: usize = 1000;
     const MAX_INNER_LOOPS: usize = 1000;
@@ -91,7 +93,7 @@ pub fn get_significant_core(
                 let was_in_set = in_set;
 
                 let (new_score, new_penalty) =
-                    calc_score_penalty(&core, modules, penalty_weight, num_partitions_to_exclude);
+                    calc_score_penalty(&core, modules, penalty_weight, num_partitions_to_keep);
 
                 let s = score - penalty_weight * penalty;
                 let s_new = new_score - penalty_weight * new_penalty;
@@ -140,17 +142,16 @@ fn calc_score_penalty(
     module: &HashSet<NodeId>,
     modules: &[&HashSet<NodeId>],
     penalty_weight: i64,
-    num_partitions_to_exclude: usize,
+    num_scores_to_keep: usize,
 ) -> (i64, i64) {
     let mut get_worst_score = {
-        let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
-        let mut scores = Vec::with_capacity(num_partitions_to_keep);
+        let mut scores = Vec::with_capacity(num_scores_to_keep + 1);
 
         move |module_score: i64| -> i64 {
             scores.push(module_score);
             scores.sort_unstable();
 
-            if scores.len() > num_partitions_to_keep {
+            if scores.len() > num_scores_to_keep {
                 let best = scores.pop().unwrap();
                 let worst = *scores.first().unwrap_or(&best);
                 worst
@@ -185,7 +186,7 @@ mod tests {
     fn test_calc_score_penalty() {
         let module = (0..10).collect::<HashSet<_>>();
 
-        let (score, penalty) = calc_score_penalty(&module, &[&module], 1, 0);
+        let (score, penalty) = calc_score_penalty(&module, &[&module], 1, 1);
         assert_eq!(score, 10);
         assert_eq!(penalty, 0);
 
@@ -198,12 +199,12 @@ mod tests {
         ];
 
         let (score, penalty) =
-            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 1);
+            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 4);
         assert_eq!(score, 40);
         assert_eq!(penalty, 0);
 
         let (score, penalty) =
-            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 0);
+            calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 5);
         assert_eq!(score, 49);
         assert_eq!(penalty, 1);
     }
@@ -239,7 +240,7 @@ mod tests {
                 &module,
                 &modules.iter().collect::<Vec<_>>(),
                 penalty_weight,
-                num_partitions_to_exclude,
+                modules.len() - num_partitions_to_exclude,
             );
         });
     }
