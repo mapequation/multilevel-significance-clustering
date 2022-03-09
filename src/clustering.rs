@@ -182,13 +182,8 @@ mod tests {
     use super::*;
     use test::Bencher;
 
-    #[test]
-    fn test_calc_score_penalty() {
+    fn setup() -> (HashSet<NodeId>, Vec<HashSet<NodeId>>) {
         let module = (0..10).collect::<HashSet<_>>();
-
-        let (score, penalty) = calc_score_penalty(&module, &[&module], 1, 1);
-        assert_eq!(score, 10);
-        assert_eq!(penalty, 0);
 
         let modules = vec![
             (0..10).collect::<HashSet<_>>(),
@@ -197,6 +192,36 @@ mod tests {
             (0..10).collect::<HashSet<_>>(),
             (1..11).collect::<HashSet<_>>(),
         ];
+
+        (module, modules)
+    }
+
+    #[test]
+    fn test_get_significant_core() {
+        let (module, modules) = setup();
+
+        assert_eq!(
+            get_significant_core(&module, &modules.iter().collect::<Vec<_>>(), 0.95, 123),
+            (1..10).collect::<HashSet<_>>()
+        );
+    }
+
+    #[bench]
+    fn bench_get_significant_core(b: &mut Bencher) {
+        let (module, modules) = setup();
+
+        b.iter(|| {
+            get_significant_core(&module, &modules.iter().collect::<Vec<_>>(), 0.95, 123);
+        });
+    }
+
+    #[test]
+    fn test_calc_score_penalty() {
+        let (module, modules) = setup();
+
+        let (score, penalty) = calc_score_penalty(&module, &[&module], 1, 1);
+        assert_eq!(score, 10);
+        assert_eq!(penalty, 0);
 
         let (score, penalty) =
             calc_score_penalty(&module, &modules.iter().collect::<Vec<_>>(), 1, 4);
@@ -213,7 +238,7 @@ mod tests {
     fn bench_calc_score_penalty(b: &mut Bencher) {
         let mut rng = rand::thread_rng();
 
-        const NUM_NODES: u32 = 1000;
+        const NUM_NODES: u32 = 1_000;
         const NUM_PARTITIONS: usize = 100;
 
         let module = (0..NUM_NODES).collect::<HashSet<_>>();
