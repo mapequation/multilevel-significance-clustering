@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
 
 use rand::rngs::StdRng;
@@ -179,34 +179,31 @@ impl Scorer {
 }
 
 struct Scores {
-    scores: Vec<i64>,
     capacity: usize,
+    len: usize,
     _worst: Option<i64>,
 }
 
 impl Scores {
     fn new(capacity: usize) -> Self {
         Self {
-            scores: Vec::with_capacity(capacity + 1),
             capacity,
+            len: 0,
             _worst: None,
         }
     }
 
     fn push(&mut self, score: i64) {
-        self.scores.push(score);
-        // Slow for > 1000 partitions
-        self.scores.sort_unstable();
-
-        if self.scores.len() > self.capacity {
-            let best = self.scores.pop().unwrap();
-            let worst = *self.scores.first().unwrap_or(&best);
-            self._worst = Some(worst)
-        }
+        self.len += 1;
+        self._worst = Some(min(self._worst.unwrap_or(score), score));
     }
 
     fn worst(&self) -> i64 {
-        self._worst.unwrap_or(i64::MIN)
+        if self.len <= self.capacity {
+            i64::MIN
+        } else {
+            self._worst.unwrap_or(i64::MIN)
+        }
     }
 }
 
