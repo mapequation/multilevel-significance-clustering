@@ -15,89 +15,98 @@ pub fn get_significant_core(
 ) -> HashSet<NodeId> {
     let mut rng = StdRng::seed_from_u64(seed);
 
-    let mut counts = HashMap::with_capacity(module.len());
+    let (mut core, candidates) = {
+        let mut counts = HashMap::with_capacity(module.len());
 
-    // Count the number of modules that each node is in
-    for node in module.iter() {
-        let count = counts.entry(*node).or_insert(0);
-        for module in modules.iter() {
-            if module.contains(node) {
-                *count += 1;
+        // Count the number of modules that each node is in
+        for node in module.iter() {
+            let count = counts.entry(*node).or_insert(0);
+            for module in modules.iter() {
+                if module.contains(node) {
+                    *count += 1;
+                }
             }
         }
-    }
 
-    // Add all nodes that are present in all partitions
-    let mut core = counts
-        .iter()
-        .filter_map(|(&node, &count)| {
-            if count == modules.len() {
-                Some(node)
-            } else {
-                None
-            }
-        })
-        .collect::<HashSet<_>>();
+        // Add all nodes that are present in all partitions
+        let core = counts
+            .iter()
+            .filter_map(|(&node, &count)| {
+                if count == modules.len() {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<_>>();
 
-    // Remove all nodes that are present in all partitions
-    counts.retain(|_, count| 0 < *count && *count < modules.len());
+        // Remove all nodes that are present in all partitions
+        counts.retain(|_, count| 0 < *count && *count < modules.len());
 
-    // Special case: if the counts are empty, all nodes are in the core
-    if counts.is_empty() {
-        return core;
-    }
+        // Special case: if the counts are empty, all nodes are in the core
+        if counts.is_empty() {
+            return core;
+        }
 
-    // Nodes that are not present in all partitions
-    let node_ids = counts.keys().into_iter().collect::<Vec<_>>();
+        // Nodes that are not present in all partitions
+        let candidates = counts.keys().copied().collect::<Vec<_>>();
+
+        (core, candidates)
+    };
 
     // Randomize start
-    for &node in node_ids.iter() {
+    for &node in candidates.iter() {
         if rng.gen::<bool>() {
-            core.insert(*node);
+            core.insert(node);
         }
     }
 
-    let num_partitions_to_exclude = ((1.0 - conf) * modules.len() as f32) as usize;
-    let num_partitions_to_keep = modules.len() - num_partitions_to_exclude;
+    let num_partitions_to_keep = {
+        let num_to_exclude = (1.0 - conf) * modules.len() as f32;
+        modules.len() - num_to_exclude as usize
+    };
 
     let penalty_weight = 10 * module.len() as i64;
 
     let scorer = Scorer::new(penalty_weight, num_partitions_to_keep);
 
-    let (mut score, mut penalty) = scorer.score(module, modules);
+    let (mut score, mut penalty) = scorer.score(&core, modules);
 
     const MAX_OUTER_LOOPS: usize = 1000;
     const MAX_INNER_LOOPS: usize = 1000;
     let num_iterations: usize = max(module.len(), 100);
-    let mut outer_loops = 0;
+
     let mut best_score = None;
 
-    loop {
-        let mut temperature = 1.0;
-        let mut inner_loops = 0;
+    fn flip(set: &mut HashSet<NodeId>, node_id: NodeId, remove: bool) {
+        if remove {
+            set.remove(&node_id);
+        } else {
+            set.insert(node_id);
+        }
+    }
 
-        loop {
+    for _ in 0..MAX_OUTER_LOOPS {
+        let mut temperature = 1.0;
+
+        for _ in 0..MAX_INNER_LOOPS {
             let mut switches = 0;
 
             for _ in 0..num_iterations {
                 // Select random node
-                let node_id = *node_ids.iter().choose(&mut rng).unwrap();
-                let in_set = core.contains(node_id);
+                let node_id = *candidates.iter().choose(&mut rng).unwrap();
+                let remove = core.contains(&node_id);
 
                 // Remove or add the node
-                if in_set {
-                    core.remove(node_id);
-                } else {
-                    core.insert(*node_id);
-                }
-
-                let was_in_set = in_set;
+                flip(&mut core, node_id, remove);
 
                 let (new_score, new_penalty) = scorer.score(&core, modules);
 
-                let s = score - penalty_weight * penalty;
-                let s_new = new_score - penalty_weight * new_penalty;
-                let delta_s = (s_new - s) as f64;
+                let delta_s = {
+                    let s = score - penalty_weight * penalty;
+                    let s_new = new_score - penalty_weight * new_penalty;
+                    (s_new - s) as f64
+                };
 
                 // Always accept if delta_s is positive
                 // Accept with some probability if negative
@@ -107,11 +116,7 @@ pub fn get_significant_core(
                     switches += 1;
                 } else {
                     // Revert the change
-                    if was_in_set {
-                        core.insert(*node_id);
-                    } else {
-                        core.remove(node_id);
-                    }
+                    flip(&mut core, node_id, !remove);
                 }
 
                 if penalty == 0 && Some(score) > best_score {
@@ -121,18 +126,14 @@ pub fn get_significant_core(
 
             temperature *= 0.99;
 
-            if switches == 0 || inner_loops > MAX_INNER_LOOPS {
+            if switches == 0 {
                 break;
             }
-
-            inner_loops += 1;
         }
 
-        if best_score.is_some() || outer_loops > MAX_OUTER_LOOPS {
+        if best_score.is_some() {
             break;
         }
-
-        outer_loops += 1;
     }
 
     core
