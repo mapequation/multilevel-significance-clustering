@@ -1,6 +1,6 @@
 #![feature(test)]
+use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::time::Instant;
 

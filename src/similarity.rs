@@ -1,5 +1,6 @@
+use hashbrown::{HashMap, HashSet};
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::BTreeMap;
 
 use crate::{Network, NodeId};
 
