@@ -149,6 +149,7 @@ fn calc_score_penalty(
 
         move |module_score: i64| -> i64 {
             scores.push(module_score);
+            // Slow for many partitions (> 10_000)
             scores.sort_unstable();
 
             if scores.len() > num_scores_to_keep {
@@ -165,9 +166,16 @@ fn calc_score_penalty(
     modules
         .iter()
         .map(|module2| {
-            let score = module.intersection(module2).count() as i64;
-            let penalty = module.difference(module2).count() as i64;
-            (score, penalty)
+            // let score = module.intersection(module2).count() as i64;
+            // let penalty = module.difference(module2).count() as i64;
+            //(score, penalty)
+            module.iter().fold((0, 0), |(score, penalty), node| {
+                if module2.contains(node) {
+                    (score + 1, penalty)
+                } else {
+                    (score, penalty + 1)
+                }
+            })
         })
         .filter(|(score, penalty)| {
             let module_score = score - penalty_weight * penalty;
