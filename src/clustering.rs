@@ -1,6 +1,6 @@
-use hashbrown::{HashMap, HashSet};
 use std::cmp::{max, min};
 
+use hashbrown::{HashMap, HashSet};
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, SeedableRng};
@@ -152,7 +152,7 @@ impl Scorer {
     }
 
     fn score(&self, module: &HashSet<NodeId>, modules: &[&HashSet<NodeId>]) -> (i64, i64) {
-        let mut scores: Scores = Scores::new(self.num_partitions_to_keep);
+        let mut worst_score = OpaqueHeap::with_capacity(self.num_partitions_to_keep);
 
         // Calculate score and penalty without worst results
         modules
@@ -171,38 +171,38 @@ impl Scorer {
             })
             .filter(|(score, penalty)| {
                 let module_score = score - self.penalty_weight * penalty;
-                scores.push(module_score);
-                module_score > scores.worst()
+                module_score > worst_score.insert(module_score).min()
             })
             .fold((0, 0), |(s, p), (score, penalty)| (s + score, p + penalty))
     }
 }
 
-struct Scores {
+struct OpaqueHeap {
     capacity: usize,
     len: usize,
-    _worst: Option<i64>,
+    min_value: Option<i64>,
 }
 
-impl Scores {
-    fn new(capacity: usize) -> Self {
+impl OpaqueHeap {
+    fn with_capacity(capacity: usize) -> Self {
         Self {
             capacity,
             len: 0,
-            _worst: None,
+            min_value: None,
         }
     }
 
-    fn push(&mut self, score: i64) {
+    fn insert(&mut self, value: i64) -> &Self {
         self.len += 1;
-        self._worst = Some(min(self._worst.unwrap_or(score), score));
+        self.min_value = Some(min(self.min_value.unwrap_or(value), value));
+        self
     }
 
-    fn worst(&self) -> i64 {
+    fn min(&self) -> i64 {
         if self.len <= self.capacity {
             i64::MIN
         } else {
-            self._worst.unwrap_or(i64::MIN)
+            self.min_value.unwrap_or(i64::MIN)
         }
     }
 }
@@ -210,8 +210,10 @@ impl Scores {
 #[cfg(test)]
 mod tests {
     extern crate test;
-    use super::*;
+
     use test::Bencher;
+
+    use super::*;
 
     fn setup() -> (HashSet<NodeId>, Vec<HashSet<NodeId>>) {
         let module = (0..10).collect::<HashSet<_>>();
