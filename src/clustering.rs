@@ -1,4 +1,4 @@
-use std::cmp::{max, min};
+use std::cmp::max;
 
 use hashbrown::{HashMap, HashSet};
 use rand::rngs::StdRng;
@@ -61,14 +61,11 @@ pub fn get_significant_core(
         }
     }
 
-    let num_partitions_to_keep = {
-        let num_to_exclude = (1.0 - conf) * modules.len() as f32;
-        modules.len() - num_to_exclude as usize
-    };
+    let num_partitions_to_exclude = ((1.0 - conf) * modules.len() as f32) as usize;
 
     let penalty_weight = 10 * module.len() as i64;
 
-    let scorer = Scorer::new(penalty_weight, num_partitions_to_keep);
+    let scorer = Scorer::new(penalty_weight, num_partitions_to_exclude);
 
     let (mut score, mut penalty) = scorer.score(&core, modules);
 
@@ -141,27 +138,25 @@ pub fn get_significant_core(
 
 struct Scorer {
     penalty_weight: i64,
-    num_partitions_to_keep: usize,
+    num_partitions_to_exclude: usize,
 }
 
 impl Scorer {
-    fn new(penalty_weight: i64, num_partitions_to_keep: usize) -> Self {
+    fn new(penalty_weight: i64, num_partitions_to_exclude: usize) -> Self {
         Self {
             penalty_weight,
-            num_partitions_to_keep,
+            num_partitions_to_exclude,
         }
     }
 
     fn score(&self, module: &HashSet<NodeId>, modules: &[&HashSet<NodeId>]) -> (i64, i64) {
-        let mut worst_score = OpaqueHeap::with_capacity(self.num_partitions_to_keep);
-
         // Calculate score and penalty without worst results
-        modules
+        let mut scores = modules
             .iter()
             .map(|module2| {
                 // let score = module.intersection(module2).count() as i64;
                 // let penalty = module.difference(module2).count() as i64;
-                //(score, penalty)
+                // (score, penalty)
                 module.iter().fold((0, 0), |(score, penalty), node| {
                     if module2.contains(node) {
                         (score + 1, penalty)
@@ -170,41 +165,20 @@ impl Scorer {
                     }
                 })
             })
-            .filter(|(score, penalty)| {
+            .map(|(score, penalty)| {
                 let module_score = score - self.penalty_weight * penalty;
-                module_score > worst_score.insert(module_score).min()
+                (module_score, score, penalty)
             })
-            .fold((0, 0), |(s, p), (score, penalty)| (s + score, p + penalty))
-    }
-}
+            .collect::<Vec<_>>();
 
-struct OpaqueHeap {
-    capacity: usize,
-    len: usize,
-    min_value: Option<i64>,
-}
+        scores.sort_unstable_by_key(|(module_score, ..)| *module_score);
 
-impl OpaqueHeap {
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            capacity,
-            len: 0,
-            min_value: None,
-        }
-    }
-
-    fn insert(&mut self, value: i64) -> &Self {
-        self.len += 1;
-        self.min_value = Some(min(self.min_value.unwrap_or(value), value));
-        self
-    }
-
-    fn min(&self) -> i64 {
-        if self.len <= self.capacity {
-            i64::MIN
-        } else {
-            self.min_value.unwrap_or(i64::MIN)
-        }
+        scores
+            .iter()
+            .skip(self.num_partitions_to_exclude)
+            .fold((0, 0), |(s, p), (_, score, penalty)| {
+                (s + score, p + penalty)
+            })
     }
 }
 
@@ -222,9 +196,9 @@ mod tests {
         let modules = vec![
             (0..10).collect::<HashSet<_>>(),
             (0..10).collect::<HashSet<_>>(),
-            (0..10).collect::<HashSet<_>>(),
-            (0..10).collect::<HashSet<_>>(),
             (1..11).collect::<HashSet<_>>(),
+            (0..10).collect::<HashSet<_>>(),
+            (0..10).collect::<HashSet<_>>(),
         ];
 
         (module, modules)
@@ -253,17 +227,17 @@ mod tests {
     fn test_calc_score() {
         let (module, modules) = setup();
 
-        let (score, penalty) = Scorer::new(1, 1).score(&module, &[&module]);
+        let (score, penalty) = Scorer::new(1, 0).score(&module, &[&module]);
         assert_eq!(score, 10);
         assert_eq!(penalty, 0);
 
         let (score, penalty) =
-            Scorer::new(1, 4).score(&module, &modules.iter().collect::<Vec<_>>());
+            Scorer::new(1, 1).score(&module, &modules.iter().collect::<Vec<_>>());
         assert_eq!(score, 40);
         assert_eq!(penalty, 0);
 
         let (score, penalty) =
-            Scorer::new(1, 5).score(&module, &modules.iter().collect::<Vec<_>>());
+            Scorer::new(1, 0).score(&module, &modules.iter().collect::<Vec<_>>());
         assert_eq!(score, 49);
         assert_eq!(penalty, 1);
     }
