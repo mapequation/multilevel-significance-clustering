@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::hash::Hash;
 
 use hashbrown::{HashMap, HashSet};
 use rand::rngs::StdRng;
@@ -136,6 +137,26 @@ pub fn get_significant_core(
     core
 }
 
+trait IntersectionDifference {
+    fn intersection_difference_count(&self, other: &Self) -> (usize, usize);
+}
+
+impl<T> IntersectionDifference for HashSet<T>
+where
+    T: Eq + Hash,
+{
+    fn intersection_difference_count(&self, other: &Self) -> (usize, usize) {
+        self.iter()
+            .fold((0, 0), |(intersection, difference), item| {
+                if other.contains(item) {
+                    (intersection + 1, difference)
+                } else {
+                    (intersection, difference + 1)
+                }
+            })
+    }
+}
+
 struct Scorer {
     penalty_weight: i64,
     num_partitions_to_exclude: usize,
@@ -150,29 +171,19 @@ impl Scorer {
     }
 
     fn score(&self, module: &HashSet<NodeId>, modules: &[&HashSet<NodeId>]) -> (i64, i64) {
-        // Calculate score and penalty without worst results
+        // Calculate score and penalty
         let mut scores = modules
             .iter()
             .map(|module2| {
-                // let score = module.intersection(module2).count() as i64;
-                // let penalty = module.difference(module2).count() as i64;
-                // (score, penalty)
-                module.iter().fold((0, 0), |(score, penalty), node| {
-                    if module2.contains(node) {
-                        (score + 1, penalty)
-                    } else {
-                        (score, penalty + 1)
-                    }
-                })
-            })
-            .map(|(score, penalty)| {
-                let module_score = score - self.penalty_weight * penalty;
-                (module_score, score, penalty)
+                let (score, penalty) = module.intersection_difference_count(module2);
+                let (score, penalty) = (score as i64, penalty as i64);
+                (score - self.penalty_weight * penalty, score, penalty)
             })
             .collect::<Vec<_>>();
 
         scores.sort_unstable_by_key(|(module_score, ..)| *module_score);
 
+        // Sum the best scores and penalties
         scores
             .iter()
             .skip(self.num_partitions_to_exclude)
