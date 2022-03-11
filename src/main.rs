@@ -82,7 +82,7 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
 
             let modules = networks
                 .iter()
-                .map(|(network_id, (module_id, _))| &rest[network_id].modules[module_id].nodes)
+                .map(|(network_id, module_id)| &rest[network_id].modules[module_id].nodes)
                 .collect::<Vec<_>>();
 
             let core = clustering::get_significant_core(
