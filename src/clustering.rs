@@ -15,30 +15,19 @@ pub fn get_significant_core(
     conf: f32,
     seed: u64,
 ) -> HashSet<NodeId> {
-    let mut rng = StdRng::seed_from_u64(seed);
-
     let (mut core, candidates) = {
-        let mut counts = HashMap::with_capacity(module.len());
-
         // Count the number of modules that each node is in
-        for node in module.iter() {
-            let count = counts.entry(*node).or_insert(0);
-            for module in modules.iter() {
-                if module.contains(node) {
-                    *count += 1;
-                }
-            }
-        }
+        let mut counts = module
+            .iter()
+            .map(|&node| (node, modules.iter().filter(|m| m.contains(&node)).count()))
+            .collect::<HashMap<_, _>>();
 
         // Add all nodes that are present in all partitions
         let core = counts
             .iter()
             .filter_map(|(&node, &count)| {
-                if count == modules.len() {
-                    Some(node)
-                } else {
-                    None
-                }
+                let in_all = count == modules.len();
+                in_all.then_some(node)
             })
             .collect::<HashSet<_>>();
 
@@ -55,6 +44,8 @@ pub fn get_significant_core(
 
         (core, candidates)
     };
+
+    let mut rng = StdRng::seed_from_u64(seed);
 
     // Randomize start
     for &node in candidates.iter() {

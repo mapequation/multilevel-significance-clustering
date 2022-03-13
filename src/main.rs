@@ -1,4 +1,6 @@
 #![feature(test)]
+#![feature(bool_to_option)]
+
 use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
 use std::io::Write;
