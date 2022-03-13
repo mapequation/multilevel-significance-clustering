@@ -16,11 +16,15 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<usize, Network>, Box<dyn std
 
         let cols = line.split(' ').collect::<Vec<_>>();
 
+        if cols.len() < 2 {
+            continue;
+        }
+
         // first column is the node id
-        let node_id = cols[0].parse()?;
+        let node_id = cols.first().unwrap().parse()?;
 
         // all other columns are partitions
-        for (network_id, col) in cols[1..].iter().enumerate() {
+        for (network_id, col) in cols.iter().skip(1).enumerate() {
             let network = networks.entry(network_id).or_insert_with(Network::new);
 
             let path = col.trim().split(':').collect::<Vec<_>>();
