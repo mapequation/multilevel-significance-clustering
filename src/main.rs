@@ -2,6 +2,8 @@
 use hashbrown::{HashMap, HashSet};
 use rayon::prelude::*;
 use std::io::Write;
+use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 use std::time::Instant;
 
 mod clustering;
@@ -71,9 +73,11 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
     let most_similar_modules = similarity::get_most_similar_modules(&first, &rest);
     println!("done ({} ms)", start.elapsed().as_millis());
 
-    print!("Clustering...");
+    let num_modules = most_similar_modules.len();
+    print!("Clustering... 0/{} done", num_modules);
     std::io::stdout().flush().unwrap();
     let start = Instant::now();
+    let current_count = Arc::new(AtomicUsize::new(0));
 
     let significant_cores = most_similar_modules
         .par_iter()
@@ -92,11 +96,14 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
                 config.seed,
             );
 
+            let count = current_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            print!("\rClustering... {}/{} done", count, num_modules);
+            std::io::stdout().flush().unwrap();
+
             (module_id1.to_string(), core)
         })
         .collect::<HashMap<String, HashSet<NodeId>>>();
 
-    let num_modules = most_similar_modules.len();
     println!(
         "\rClustering... {}/{} done ({} ms)",
         num_modules,
