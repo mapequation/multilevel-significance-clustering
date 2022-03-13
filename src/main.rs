@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(map_first_last)]
 #![feature(bool_to_option)]
 
 use hashbrown::{HashMap, HashSet};

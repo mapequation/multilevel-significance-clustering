@@ -61,6 +61,11 @@ pub fn write_result(
 
     let mut f = BufWriter::new(File::create(out_file)?);
 
+    let mut nodes = nodes.into_iter().collect::<Vec<_>>();
+
+    // Sort by top module id
+    nodes.sort_by_key(|(_, entries)| (*entries.first_key_value().unwrap().1).0);
+
     for (node, entries) in nodes.iter() {
         let mut line = String::new();
 
