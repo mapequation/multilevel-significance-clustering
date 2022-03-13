@@ -26,7 +26,7 @@ pub fn get_most_similar_modules(
                         .min_by(|(_, distance1), (_, distance2)| {
                             distance1.partial_cmp(distance2).unwrap()
                         })
-                        .and_then(|(module_id, ..)| Some((network_id, module_id.clone())))
+                        .map(|(module_id, ..)| (network_id, module_id.clone()))
                 })
                 .collect();
 
