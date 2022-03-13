@@ -2,6 +2,7 @@ use std::cmp::max;
 use std::hash::Hash;
 
 use hashbrown::{HashMap, HashSet};
+use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, SeedableRng};
@@ -171,21 +172,15 @@ impl Scorer {
     }
 
     fn score(&self, module: &HashSet<NodeId>, modules: &[&HashSet<NodeId>]) -> (i64, i64) {
-        // Calculate score and penalty
-        let mut scores = modules
+        // Sum the best scores and penalties
+        modules
             .iter()
             .map(|module2| {
                 let (score, penalty) = module.intersection_difference_count(module2);
                 let (score, penalty) = (score as i64, penalty as i64);
                 (score - self.penalty_weight * penalty, score, penalty)
             })
-            .collect::<Vec<_>>();
-
-        scores.sort_unstable_by_key(|(module_score, ..)| *module_score);
-
-        // Sum the best scores and penalties
-        scores
-            .iter()
+            .sorted_by_key(|(module_score, ..)| *module_score)
             .skip(self.num_partitions_to_exclude)
             .fold((0, 0), |(s, p), (_, score, penalty)| {
                 (s + score, p + penalty)
