@@ -32,7 +32,7 @@ pub fn get_significant_core(
             .collect::<HashSet<_>>();
 
         // Remove all nodes that are present in all partitions
-        counts.retain(|_, count| 0 < *count && *count < modules.len());
+        counts.retain(|_, &mut count| 0 < count && count < modules.len());
 
         // Special case: if the counts are empty, all nodes are in the core
         if counts.is_empty() {
@@ -54,11 +54,9 @@ pub fn get_significant_core(
         }
     }
 
-    let num_partitions_to_exclude = ((1.0 - conf) * modules.len() as f32) as usize;
-
     let penalty_weight = 10 * module.len() as i64;
 
-    let scorer = Scorer::new(penalty_weight, num_partitions_to_exclude);
+    let scorer = Scorer::new(penalty_weight, get_num_to_exclude(modules.len(), conf));
 
     let (mut score, mut penalty) = scorer.score(&core, modules);
 
@@ -179,6 +177,10 @@ impl Scorer {
     }
 }
 
+fn get_num_to_exclude(num_partitions: usize, conf: f32) -> usize {
+    ((1.0 - conf) * num_partitions as f32 + 0.5) as usize
+}
+
 #[cfg(test)]
 mod tests {
     extern crate test;
@@ -186,6 +188,42 @@ mod tests {
     use test::Bencher;
 
     use super::*;
+
+    #[test]
+    fn test_num_to_exclude() {
+        for i in 1..=10 {
+            assert_eq!(get_num_to_exclude(i, 1.0), 0);
+        }
+
+        for i in 1..=9 {
+            assert_eq!(get_num_to_exclude(i, 0.95), 0);
+        }
+        assert_eq!(get_num_to_exclude(10, 0.95), 1);
+
+        for i in 1..=4 {
+            assert_eq!(get_num_to_exclude(i, 0.9), 0);
+        }
+        for i in 5..=10 {
+            assert_eq!(get_num_to_exclude(i, 0.9), 1);
+        }
+
+        for i in 1..=3 {
+            assert_eq!(get_num_to_exclude(i, 0.85), 0);
+        }
+        for i in 4..=10 {
+            assert_eq!(get_num_to_exclude(i, 0.85), 1);
+        }
+
+        for i in 1..=2 {
+            assert_eq!(get_num_to_exclude(i, 0.8), 0);
+        }
+        for i in 3..=7 {
+            assert_eq!(get_num_to_exclude(i, 0.8), 1);
+        }
+        for i in 8..=10 {
+            assert_eq!(get_num_to_exclude(i, 0.8), 2);
+        }
+    }
 
     fn setup() -> (HashSet<NodeId>, Vec<HashSet<NodeId>>) {
         let module = (0..10).collect::<HashSet<_>>();
