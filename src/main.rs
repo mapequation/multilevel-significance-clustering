@@ -66,9 +66,15 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
 
     print!("\nReading input file... ");
     let mut networks = io::read_input(&config.in_file)?;
-    println!("done");
 
     let first = networks.remove(&0).unwrap();
+    let num_nodes = first.modules.values().fold(0, |acc, m| acc + m.nodes.len());
+    println!(
+        "done ({} nodes in {} modules)",
+        num_nodes,
+        first.modules.len()
+    );
+
     let rest = networks;
 
     print!("Computing similarities... ");
@@ -92,12 +98,7 @@ fn run(config: config::Config) -> Result<(), Box<dyn std::error::Error>> {
                 .map(|(network_id, module_id)| &rest[network_id].modules[module_id].nodes)
                 .collect::<Vec<_>>();
 
-            let core = clustering::get_significant_core(
-                module,
-                modules.as_slice(),
-                config.conf,
-                config.seed,
-            );
+            let core = clustering::get_significant_core(module, &modules, config.conf, config.seed);
 
             let count = current_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             print!("\rClustering... {}/{} done", count, num_modules);
