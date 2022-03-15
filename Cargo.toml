@@ -1,7 +1,10 @@
 [package]
 name = "significance-clustering"
+description = "Multi-level Significance Clustering"
 version = "0.1.0"
 edition = "2021"
+repository = "github.com/mapequation/multilevel-significance-clustering"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

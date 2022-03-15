@@ -1,12 +1,14 @@
-use crate::{HashMap, HashSet};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
+use std::num::ParseIntError;
 
-use crate::{Module, Network, NodeId};
+use itertools::Itertools;
 
-pub fn read_input(in_file: &str) -> Result<BTreeMap<usize, Network>, Box<dyn std::error::Error>> {
+use crate::{HashMap, HashSet, Module, Network, NetworkId, NodeId};
+
+pub fn read_input(in_file: &str) -> Result<BTreeMap<NetworkId, Network>, ParseIntError> {
     let mut networks = BTreeMap::new();
 
     for line in in_file.lines() {
@@ -30,8 +32,8 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<usize, Network>, Box<dyn std
             let path = col.trim().split(':').collect::<Vec<_>>();
 
             // 1:2:3 -> [1, 1:2, 1:2:3]
-            for level in 1..path.len() + 1 {
-                let module_id = path[0..level].join(":");
+            for level in 1..=path.len() {
+                let module_id = path.iter().take(level).join(":");
                 network.add_node(&module_id, node_id);
             }
         }
@@ -67,14 +69,14 @@ pub fn write_result(
     let mut f = BufWriter::new(File::create(out_file)?);
 
     for (node, entries) in nodes.iter() {
-        let mut line = String::new();
+        let mut line = String::with_capacity(2 * entries.values().len() + 2);
 
         for &(module, significant) in entries.values() {
             let separator = if significant { ':' } else { ';' };
             line.push_str(&format!("{}{}", module, separator));
         }
 
-        if &line[line.len() - 1..] == ":" {
+        if line.ends_with(':') {
             line.pop();
         }
 

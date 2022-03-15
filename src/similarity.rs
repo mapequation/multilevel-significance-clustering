@@ -1,12 +1,11 @@
-use crate::{HashMap, HashSet};
 use std::collections::BTreeMap;
 
-use crate::{Network, NodeId};
+use crate::{HashMap, HashSet, Network, NetworkId, NodeId};
 
 pub fn get_most_similar_modules(
     first: &Network,
-    rest: &BTreeMap<usize, Network>,
-) -> HashMap<String, BTreeMap<usize, String>> {
+    rest: &BTreeMap<NetworkId, Network>,
+) -> HashMap<String, BTreeMap<NetworkId, String>> {
     first
         .modules
         .values()

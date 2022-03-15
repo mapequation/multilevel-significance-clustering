@@ -1,13 +1,12 @@
 use std::cmp::max;
 use std::hash::Hash;
 
-use crate::{HashMap, HashSet};
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
 use rand::{Rng, SeedableRng};
 
-use crate::NodeId;
+use crate::{HashMap, HashSet, NodeId};
 
 pub fn get_significant_core(
     module: &HashSet<NodeId>,

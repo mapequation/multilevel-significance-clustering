@@ -30,22 +30,24 @@ pub mod io;
 pub mod similarity;
 
 pub type NodeId = u32;
+pub type NetworkId = usize;
 
 #[derive(Debug, Clone)]
 pub struct Module {
     pub module_id: String,
     pub module: u32,
-    pub level: usize,
+    pub level: u8,
     pub nodes: HashSet<NodeId>,
 }
 
 impl Module {
     fn new(id: &str) -> Module {
-        let path = id.split(':').collect::<Vec<&str>>();
+        let path = id.split(':');
+        let level = path.clone().count() as u8;
         Module {
             module_id: id.to_string(),
             module: path.last().unwrap().parse().unwrap_or_default(),
-            level: path.len(),
+            level,
             nodes: HashSet::new(),
         }
     }
@@ -75,9 +77,12 @@ impl Network {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub fn run(contents: &str, conf: f32, seed: u32) -> Map {
-    let mut networks = io::read_input(contents).unwrap();
-    let first = networks.remove(&0).unwrap();
-    let rest = networks;
+    let (first, rest) = {
+        let mut networks = io::read_input(contents).unwrap();
+        let first = networks.remove(&0).unwrap();
+        let rest = networks;
+        (first, rest)
+    };
 
     let most_similar_modules = similarity::get_most_similar_modules(&first, &rest);
 
@@ -130,25 +135,35 @@ pub fn run(contents: &str, conf: f32, seed: u32) -> Map {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run(
+    Config {
+        in_file,
+        conf,
+        seed,
+        out_file,
+        ..
+    }: Config,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Multi-level significance clustering");
     println!("Running with:");
-    println!("\t- conf: {}", config.conf);
-    println!("\t- seed: {}", config.seed);
-    println!("\t- output: {}", config.out_file);
+    println!("\t- conf: {}", conf);
+    println!("\t- seed: {}", seed);
+    println!("\t- output: {}", out_file);
 
     print!("\nReading input file... ");
-    let mut networks = io::read_input(&config.in_file)?;
+    let (first, rest) = {
+        let mut networks = io::read_input(&in_file)?;
+        let first = networks.remove(&0).unwrap();
+        let rest = networks;
+        (first, rest)
+    };
 
-    let first = networks.remove(&0).unwrap();
     let num_nodes = first.modules.values().fold(0, |acc, m| acc + m.nodes.len());
     println!(
         "done ({} nodes in {} modules)",
         num_nodes,
         first.modules.len()
     );
-
-    let rest = networks;
 
     print!("Computing similarities... ");
     let start = Instant::now();
@@ -171,7 +186,7 @@ pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
                 .map(|(network_id, module_id)| &rest[network_id].modules[module_id].nodes)
                 .collect::<Vec<_>>();
 
-            let core = clustering::get_significant_core(module, &modules, config.conf, config.seed);
+            let core = clustering::get_significant_core(module, &modules, conf, seed);
 
             let count = current_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             print!("\rClustering... {}/{} done", count, num_modules);
@@ -189,8 +204,33 @@ pub fn run(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     );
 
     print!("Writing output file... ");
-    io::write_result(&first.modules, &significant_cores, &config.out_file)?;
+    io::write_result(&first.modules, &significant_cores, &out_file)?;
     println!("done");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    extern crate test;
+
+    use test::Bencher;
+
+    #[bench]
+    fn bench_collect(b: &mut Bencher) {
+        b.iter(|| {
+            let path = "1:2:3".split(':').collect::<Vec<_>>();
+            let _last: u32 = path.last().unwrap().parse().unwrap_or_default();
+            let _level = path.len() as u8;
+        })
+    }
+
+    #[bench]
+    fn bench_clone(b: &mut Bencher) {
+        b.iter(|| {
+            let path = "1:2:3".split(':');
+            let _level = path.clone().count() as u8;
+            let _last: u32 = path.last().unwrap().parse().unwrap_or_default();
+        })
+    }
 }
