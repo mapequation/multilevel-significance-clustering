@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use crate::{HashMap, HashSet};
 use std::collections::BTreeMap;
 
 use crate::{Network, NodeId};

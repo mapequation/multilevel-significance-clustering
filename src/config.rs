@@ -1,6 +1,6 @@
 use std::fs;
 
-pub(crate) struct Config {
+pub struct Config {
     pub seed: u64,
     pub conf: f32,
     pub in_file: String,

@@ -1,7 +1,7 @@
 use std::cmp::max;
 use std::hash::Hash;
 
-use hashbrown::{HashMap, HashSet};
+use crate::{HashMap, HashSet};
 use itertools::Itertools;
 use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;

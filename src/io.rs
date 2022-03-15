@@ -1,4 +1,4 @@
-use hashbrown::{HashMap, HashSet};
+use crate::{HashMap, HashSet};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::BufWriter;
@@ -59,12 +59,12 @@ pub fn write_result(
         }
     }
 
-    let mut f = BufWriter::new(File::create(out_file)?);
-
     let mut nodes = nodes.into_iter().collect::<Vec<_>>();
 
     // Sort by top module id
-    nodes.sort_by_key(|(_, entries)| (*entries.first_key_value().unwrap().1).0);
+    nodes.sort_unstable_by_key(|(_, entries)| (*entries.first_key_value().unwrap().1).0);
+
+    let mut f = BufWriter::new(File::create(out_file)?);
 
     for (node, entries) in nodes.iter() {
         let mut line = String::new();
