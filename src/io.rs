@@ -16,7 +16,7 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<NetworkId, Network>, ParseIn
             continue;
         }
 
-        let cols = line.split(' ').collect::<Vec<_>>();
+        let cols = line.split_whitespace().collect::<Vec<_>>();
 
         if cols.len() < 2 {
             continue;
@@ -26,14 +26,15 @@ pub fn read_input(in_file: &str) -> Result<BTreeMap<NetworkId, Network>, ParseIn
         let node_id = cols.first().unwrap().parse()?;
 
         // all other columns are partitions
-        for (network_id, col) in cols.iter().skip(1).enumerate() {
+        for (network_id, col) in cols.into_iter().skip(1).enumerate() {
             let network = networks.entry(network_id).or_insert_with(Network::new);
 
-            let path = col.trim().split(':').collect::<Vec<_>>();
+            let path = col.split(':');
+            let len = path.clone().count();
 
             // 1:2:3 -> [1, 1:2, 1:2:3]
-            for level in 1..=path.len() {
-                let module_id = path.iter().take(level).join(":");
+            for level in 1..=len {
+                let module_id = path.clone().take(level).join(":");
                 network.add_node(&module_id, node_id);
             }
         }
@@ -69,20 +70,18 @@ pub fn write_result(
     let mut f = BufWriter::new(File::create(out_file)?);
 
     for (node, entries) in nodes.iter() {
-        let mut line = String::with_capacity(2 * entries.values().len() + 2);
+        let mut path = String::with_capacity(2 * entries.values().len());
 
         for &(module, significant) in entries.values() {
             let separator = if significant { ':' } else { ';' };
-            line.push_str(&format!("{}{}", module, separator));
+            path.push_str(&format!("{}{}", module, separator));
         }
 
-        if line.ends_with(':') {
-            line.pop();
+        if path.ends_with(':') {
+            path.pop();
         }
 
-        line.push_str(&format!(" {}", node));
-
-        writeln!(f, "{}", line)?;
+        writeln!(f, "{} {}", path, node)?;
     }
 
     Ok(())

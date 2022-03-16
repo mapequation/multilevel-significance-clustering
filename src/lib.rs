@@ -43,10 +43,10 @@ pub struct Module {
 impl Module {
     fn new(id: &str) -> Module {
         let path = id.split(':');
-        let level = path.clone().count() as u8;
+        let level = path.clone().count().try_into().unwrap();
         Module {
-            module_id: id.to_string(),
-            module: path.last().unwrap().parse().unwrap_or_default(),
+            module_id: id.to_owned(),
+            module: path.last().and_then(|s| s.parse().ok()).unwrap(),
             level,
             nodes: HashSet::new(),
         }
@@ -220,8 +220,8 @@ mod tests {
     fn bench_collect(b: &mut Bencher) {
         b.iter(|| {
             let path = "1:2:3".split(':').collect::<Vec<_>>();
-            let _last: u32 = path.last().unwrap().parse().unwrap_or_default();
-            let _level = path.len() as u8;
+            let _level: u8 = path.len().try_into().unwrap();
+            let _last: u32 = path.last().and_then(|s| s.parse().ok()).unwrap();
         })
     }
 
@@ -229,8 +229,8 @@ mod tests {
     fn bench_clone(b: &mut Bencher) {
         b.iter(|| {
             let path = "1:2:3".split(':');
-            let _level = path.clone().count() as u8;
-            let _last: u32 = path.last().unwrap().parse().unwrap_or_default();
+            let _level: u8 = path.clone().count().try_into().unwrap();
+            let _last: u32 = path.last().and_then(|s| s.parse().ok()).unwrap();
         })
     }
 }

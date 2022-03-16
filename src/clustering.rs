@@ -65,12 +65,20 @@ pub fn get_significant_core(
 
     let mut best_score = None;
 
-    fn flip(set: &mut HashSet<NodeId>, node_id: NodeId, remove: bool) {
+    fn flip(
+        set: &mut HashSet<NodeId>,
+        node_id: NodeId,
+        remove: bool,
+    ) -> Box<dyn FnOnce(&mut HashSet<NodeId>)> {
         if remove {
             set.remove(&node_id);
         } else {
             set.insert(node_id);
         }
+
+        Box::new(move |set: &mut HashSet<NodeId>| {
+            let _ = flip(set, node_id, !remove);
+        })
     }
 
     for _ in 0..MAX_OUTER_LOOPS {
@@ -85,7 +93,7 @@ pub fn get_significant_core(
                 let remove = core.contains(&node_id);
 
                 // Remove or add the node
-                flip(&mut core, node_id, remove);
+                let revert = flip(&mut core, node_id, remove);
 
                 let (new_score, new_penalty) = scorer.score(&core, modules);
 
@@ -103,7 +111,7 @@ pub fn get_significant_core(
                     switches += 1;
                 } else {
                     // Revert the change
-                    flip(&mut core, node_id, !remove);
+                    revert(&mut core);
                 }
 
                 if penalty == 0 && Some(score) > best_score {
