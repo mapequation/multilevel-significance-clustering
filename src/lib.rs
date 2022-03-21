@@ -3,22 +3,23 @@
 #![feature(bool_to_option)]
 
 #[cfg(not(target_arch = "wasm32"))]
-use rayon::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
-use std::io::Write;
-#[cfg(not(target_arch = "wasm32"))]
-use std::sync::atomic::AtomicUsize;
-#[cfg(not(target_arch = "wasm32"))]
-use std::sync::Arc;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
+mod target_arch {
+    pub use rayon::prelude::*;
+    pub use std::io::Write;
+    pub use std::sync::atomic::AtomicUsize;
+    pub use std::sync::atomic::Ordering;
+    pub use std::sync::Arc;
+    pub use std::time::Instant;
+}
 
 #[cfg(target_arch = "wasm32")]
-use js_sys::{Array, Map};
-#[cfg(target_arch = "wasm32")]
-use std::collections::BTreeMap;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
+mod target_arch {
+    pub use js_sys::{Array, Map};
+    pub use std::collections::BTreeMap;
+    pub use wasm_bindgen::prelude::*;
+}
+
+use target_arch::*;
 
 use hashbrown::{HashMap, HashSet};
 
@@ -188,7 +189,7 @@ pub fn run(
 
             let core = clustering::get_significant_core(module, &modules, conf, seed);
 
-            let count = current_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let count = current_count.fetch_add(1, Ordering::SeqCst);
             print!("\rClustering... {}/{} done", count, num_modules);
             std::io::stdout().flush().unwrap();
 
